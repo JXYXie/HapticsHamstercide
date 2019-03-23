@@ -6,3 +6,5 @@
 !sphere.h
 !spring.cpp
 !spring.h
+!*.obj
+!*.mtl
