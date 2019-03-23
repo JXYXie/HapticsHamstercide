@@ -1,5 +1,8 @@
 //==============================================================================
 /*
+	Haptic Hamstercide Game
+	Version: 0.0.1 (Mar 23, 2019)
+	Authors: Jack Xie & Alan Fung
 */
 //==============================================================================
 
@@ -46,7 +49,8 @@ cCamera* camera;
 cDirectionalLight *light;
 
 // a virtual object
-cMultiMesh* object;
+cMultiMesh* hamster;
+cMultiMesh* hammer;
 
 // a haptic device handler
 cHapticDeviceHandler* handler;
@@ -378,69 +382,69 @@ int main(int argc, char* argv[])
 	double maxStiffness = hapticDeviceInfo.m_maxLinearStiffness / workspaceScaleFactor;
 
 	// create a virtual mesh
-	object = new cMultiMesh();
+	hamster = new cMultiMesh();
 
-	object->loadFromFile("hamster.obj");
-	object->setUseTransparency(false, true);
+	hamster->loadFromFile("hamster.obj");
+	hamster->setUseTransparency(false, true);
 	//object->rotateAboutGlobalAxisDeg(cVector3d(0, 1, 0), 180);
 
 	// add object to world
-	world->addChild(object);
+	world->addChild(hamster);
 
 	// disable culling so that faces are rendered on both sides
-	object->setUseCulling(false);
+	hamster->setUseCulling(false);
 
 	// get dimensions of object
-	object->computeBoundaryBox(true);
-	double size = cSub(object->getBoundaryMax(), object->getBoundaryMin()).length();
+	hamster->computeBoundaryBox(true);
+	double size = cSub(hamster->getBoundaryMax(), hamster->getBoundaryMin()).length();
 
 	// resize object to screen
 	if (size > 0.001)
 	{
-		object->scale(1.0 / size);
+		hamster->scale(1.0 / size);
 	}
 
 	// compute a boundary box
-	object->computeBoundaryBox(true);
+	hamster->computeBoundaryBox(true);
 
 	// show/hide boundary box
-	object->setShowBoundaryBox(false);
+	hamster->setShowBoundaryBox(false);
 
 	// compute collision detection algorithm
-	object->createAABBCollisionDetector(toolRadius);
+	hamster->createAABBCollisionDetector(toolRadius);
 
 	// define a default stiffness for the object
-	object->setStiffness(0.5 * maxStiffness, true);
+	hamster->setStiffness(0.5 * maxStiffness, true);
 
 	// define some haptic friction properties
-	object->setFriction(0.1, 0.2, true);
+	hamster->setFriction(0.1, 0.2, true);
 
 	// enable display list for faster graphic rendering
-	object->setUseDisplayList(true);
+	hamster->setUseDisplayList(true);
 
 	// center object in scene
-	object->setLocalPos(-1.0 * object->getBoundaryCenter());
+	hamster->setLocalPos(-1.0 * hamster->getBoundaryCenter());
 
 	// rotate object in scene
-	object->rotateExtrinsicEulerAnglesDeg(0, 0, 90, C_EULER_ORDER_XYZ);
+	hamster->rotateExtrinsicEulerAnglesDeg(0, 0, 90, C_EULER_ORDER_XYZ);
 
 	// compute all edges of object for which adjacent triangles have more than 40 degree angle
-	object->computeAllEdges(40);
+	hamster->computeAllEdges(40);
 
 	// set line width of edges and color
 	cColorf colorEdges;
 	colorEdges.setBlack();
-	object->setEdgeProperties(1, colorEdges);
+	hamster->setEdgeProperties(1, colorEdges);
 
 	// set normal properties for display
 	cColorf colorNormals;
 	colorNormals.setOrangeTomato();
-	object->setNormalsProperties(0.01, colorNormals);
+	hamster->setNormalsProperties(0.01, colorNormals);
 
 	// display options
-	object->setShowTriangles(showTriangles);
-	object->setShowEdges(showEdges);
-	object->setShowNormals(showNormals);
+	hamster->setShowTriangles(showTriangles);
+	hamster->setShowEdges(showEdges);
+	hamster->setShowNormals(showNormals);
 
 
 	//--------------------------------------------------------------------------
@@ -549,24 +553,24 @@ void keyCallback(GLFWwindow* a_window, int a_key, int a_scancode, int a_action, 
 	// option - show/hide texture
 	else if (a_key == GLFW_KEY_1)
 	{
-		bool useTexture = object->getUseTexture();
-		object->setUseTexture(!useTexture);
+		bool useTexture = hamster->getUseTexture();
+		hamster->setUseTexture(!useTexture);
 	}
 
 	// option - enable/disable wire mode
 	else if (a_key == GLFW_KEY_2)
 	{
-		bool useWireMode = object->getWireMode();
-		object->setWireMode(!useWireMode, true);
+		bool useWireMode = hamster->getWireMode();
+		hamster->setWireMode(!useWireMode, true);
 	}
 
 	// option - show/hide collision detection tree
 	else if (a_key == GLFW_KEY_3)
 	{
 		cColorf color = cColorf(1.0, 0.0, 0.0);
-		object->setCollisionDetectorProperties(collisionTreeDisplayLevel, color, true);
-		bool show = object->getShowCollisionDetector();
-		object->setShowCollisionDetector(!show, true);
+		hamster->setCollisionDetectorProperties(collisionTreeDisplayLevel, color, true);
+		bool show = hamster->getShowCollisionDetector();
+		hamster->setShowCollisionDetector(!show, true);
 	}
 
 	// option - decrease depth level of collision tree
@@ -575,8 +579,8 @@ void keyCallback(GLFWwindow* a_window, int a_key, int a_scancode, int a_action, 
 		collisionTreeDisplayLevel--;
 		if (collisionTreeDisplayLevel < 0) { collisionTreeDisplayLevel = 0; }
 		cColorf color = cColorf(1.0, 0.0, 0.0);
-		object->setCollisionDetectorProperties(collisionTreeDisplayLevel, color, true);
-		object->setShowCollisionDetector(true, true);
+		hamster->setCollisionDetectorProperties(collisionTreeDisplayLevel, color, true);
+		hamster->setShowCollisionDetector(true, true);
 	}
 
 	// option - increase depth level of collision tree
@@ -584,8 +588,8 @@ void keyCallback(GLFWwindow* a_window, int a_key, int a_scancode, int a_action, 
 	{
 		collisionTreeDisplayLevel++;
 		cColorf color = cColorf(1.0, 0.0, 0.0);
-		object->setCollisionDetectorProperties(collisionTreeDisplayLevel, color, true);
-		object->setShowCollisionDetector(true, true);
+		hamster->setCollisionDetectorProperties(collisionTreeDisplayLevel, color, true);
+		hamster->setShowCollisionDetector(true, true);
 	}
 
 	// option - save screenshot to file
@@ -601,21 +605,21 @@ void keyCallback(GLFWwindow* a_window, int a_key, int a_scancode, int a_action, 
 	else if (a_key == GLFW_KEY_T)
 	{
 		showTriangles = !showTriangles;
-		object->setShowTriangles(showTriangles);
+		hamster->setShowTriangles(showTriangles);
 	}
 
 	// option - show/hide edges
 	else if (a_key == GLFW_KEY_E)
 	{
 		showEdges = !showEdges;
-		object->setShowEdges(showEdges);
+		hamster->setShowEdges(showEdges);
 	}
 
 	// option - show/hide normals
 	else if (a_key == GLFW_KEY_N)
 	{
 		showNormals = !showNormals;
-		object->setShowNormals(showNormals);
+		hamster->setShowNormals(showNormals);
 	}
 
 	// option - toggle fullscreen
@@ -773,7 +777,7 @@ void updateHaptics(void)
 			}
 			else
 			{
-				selectedObject = object;
+				selectedObject = hamster;
 			}
 
 			// get transformation from object
