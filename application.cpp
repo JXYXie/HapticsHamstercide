@@ -281,7 +281,7 @@ int main(int argc, char* argv[])
 	world->addChild(camera);
 
 	// define a basis in spherical coordinates for the camera
-	camera->set(cVector3d(2.0, 0.0, 0.0),    // camera position (eye)
+	camera->set(cVector3d(2.0, 0.0, 1.0),    // camera position (eye)
 		cVector3d(0.0, 0.0, 0.0),    // look at position (target)
 		cVector3d(0.0, 0.0, 1.0));   // direction of the (up) vector
 
@@ -344,22 +344,24 @@ int main(int argc, char* argv[])
 	hapticDevice->setEnableGripperUserSwitch(true);
 
 	// define the radius of the tool (sphere)
-	double toolRadius = 0.01;
+	double toolRadius = 0.1;
 
 	// define a radius for the tool
 	tool->setRadius(toolRadius);
 
 	// hide the device sphere. only show proxy.
-	tool->setShowContactPoints(true, false);
+	tool->setShowContactPoints(false, false);
 
 	// create a white cursor
-	tool->m_hapticPoint->m_sphereProxy->m_material->setWhite();
+	//tool->m_hapticPoint->m_sphereProxy->m_material->setWhite();
 
 	// map the physical workspace of the haptic device to a larger virtual workspace.
 	tool->setWorkspaceRadius(1.0);
 
+	tool->enableDynamicObjects(true);
+
 	// oriente tool with camera
-	tool->setLocalRot(camera->getLocalRot());
+	//tool->setLocalRot(camera->getLocalRot());
 
 	// haptic forces are enabled only if small forces are first sent to the device;
 	// this mode avoids the force spike that occurs when the application starts when 
@@ -369,11 +371,6 @@ int main(int argc, char* argv[])
 	// start the haptic tool
 	tool->start();
 
-
-	//--------------------------------------------------------------------------
-	// CREATE OBJECT
-	//--------------------------------------------------------------------------
-
 	// read the scale factor between the physical workspace of the haptic
 	// device and the virtual workspace defined for the tool
 	double workspaceScaleFactor = tool->getWorkspaceScaleFactor();
@@ -381,12 +378,15 @@ int main(int argc, char* argv[])
 	// stiffness properties
 	double maxStiffness = hapticDeviceInfo.m_maxLinearStiffness / workspaceScaleFactor;
 
+	//--------------------------------------------------------------------------
+	// Hamster Object
+	//--------------------------------------------------------------------------
+
 	// create a virtual mesh
 	hamster = new cMultiMesh();
 
 	hamster->loadFromFile("hamster.obj");
 	hamster->setUseTransparency(false, true);
-	//object->rotateAboutGlobalAxisDeg(cVector3d(0, 1, 0), 180);
 
 	// add object to world
 	world->addChild(hamster);
@@ -417,7 +417,7 @@ int main(int argc, char* argv[])
 	hamster->setStiffness(0.5 * maxStiffness, true);
 
 	// define some haptic friction properties
-	hamster->setFriction(0.1, 0.2, true);
+	hamster->setFriction(0.4, 0.2, true);
 
 	// enable display list for faster graphic rendering
 	hamster->setUseDisplayList(true);
@@ -446,6 +446,28 @@ int main(int argc, char* argv[])
 	hamster->setShowEdges(showEdges);
 	hamster->setShowNormals(showNormals);
 
+	//--------------------------------------------------------------------------
+	// Hammer Object
+	//--------------------------------------------------------------------------
+	hammer = new cMultiMesh();
+	// add hammer to tool
+	tool->m_image = hammer;
+	hammer->loadFromFile("hammer.obj");
+
+	// compute collision detection algorithm
+	hammer->createAABBCollisionDetector(toolRadius);
+
+	// define a default stiffness for the object
+	hammer->setStiffness(0.8 * maxStiffness, true);
+
+	hammer->computeBoundaryBox(true);
+	//hammer->setShowBoundaryBox(true);
+	// enable display list for faster graphic rendering
+	hammer->setUseDisplayList(true);
+
+	hammer->setUseTransparency(false, true);
+
+	hammer->setUseCulling(false);
 
 	//--------------------------------------------------------------------------
 	// WIDGETS
