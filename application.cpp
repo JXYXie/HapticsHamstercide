@@ -125,7 +125,7 @@ int hamster_hits;
 int misses;
 int score;
 
-cVector3d camPos = cVector3d(3.0, 0.0, 2.0);
+cVector3d camPos = cVector3d(4.0, 0.0, 2.0);
 cVector3d camLook = cVector3d(0.0, 0.0, 0.0);
 
 //------------------------------------------------------------------------------
@@ -741,7 +741,7 @@ void updateHaptics(void)
 			double size = cSub(collidedObject->getBoundaryMax(), collidedObject->getBoundaryMin()).length();
 
 			// Make sure the hammer movement was an attempt to hit something (It has to be fast enough)
-			if (tool->getDeviceLocalLinVel().length() >= 1.5)
+			if (tool->m_hapticPoint->m_algorithmFingerProxy->getForce().z() >= 4)
 			{
 				double t_current = timer.getCurrentTimeSeconds();
 				double delta_t = t_current - t_previous;
@@ -758,7 +758,7 @@ void updateHaptics(void)
 					t_previous = t_current;
 				}
 				// Misses hamster and its been at least 1/3 second since last miss or hit
-				else if (size > 0.75 && (duration >= 0.33))
+				else if (size > 0.75 && (duration >= 0.25))
 				{
 					start = clock();
 					misses++;
