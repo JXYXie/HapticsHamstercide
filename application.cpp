@@ -697,6 +697,8 @@ void updateHaptics(void)
 
 	double t_previous = timer.getCurrentTimeSeconds();
 	double random_previous = randomTimer.getCurrentTimeSeconds();
+	cVector3d changePos = camPos;
+	cVector3d changeLook = camLook;
 	// main haptic simulation loop
 	while (simulationRunning)
 	{
@@ -708,13 +710,39 @@ void updateHaptics(void)
 		freqCounterHaptics.signal(1);
 
 		/////////////////////////////////////////
-		toolPosition = tool->getLocalPos();
-		toolVelocity = tool->getDeviceLocalLinVel();
+		cVector3d devicePosition = tool->getDeviceLocalPos();
+		//cout << "tool pos: " << devicePosition << endl;
 
-		newCamLook = newCamLook + toolVelocity * scaleVel;
-		newCamPos = newCamPos + toolVelocity * scaleVel;
-		camera->set(cVector3d(newCamPos.x(), newCamPos.y(), 2),
-					cVector3d(newCamLook.x(), newCamLook.y(), 0),
+		double bounds = 0.5;
+		double movement = 0.0015;
+		cVector3d currentToolPos;
+		currentToolPos = tool->getLocalPos();
+		if (devicePosition.x() > bounds)
+		{
+			changePos = changePos + cVector3d(1.0, 0.0, 0.0) * movement;
+			changeLook = changeLook + cVector3d(1.0, 0.0, 0.0) * movement;
+			tool->setLocalPos(currentToolPos.x() + movement, currentToolPos.y(), currentToolPos.z());
+		}
+		else if (devicePosition.x() < -bounds)
+		{
+			changePos = changePos + cVector3d(-1.0, 0.0, 0.0) * movement;
+			changeLook = changeLook + cVector3d(-1.0, 0.0, 0.0) * movement;
+			tool->setLocalPos(currentToolPos.x() - movement, currentToolPos.y(), currentToolPos.z());
+		}
+		else if (devicePosition.y() > bounds)
+		{
+			changePos = changePos + cVector3d(0.0, 1.0, 0.0) * movement;
+			changeLook = changeLook + cVector3d(0.0, 1.0, 0.0) * movement;
+			tool->setLocalPos(currentToolPos.x(), currentToolPos.y() + movement, currentToolPos.z());
+		}
+		else if (devicePosition.y() < -bounds)
+		{
+			changePos = changePos + cVector3d(0.0, -1.0, 0.0) * movement;
+			changeLook = changeLook + cVector3d(0.0, -1.0, 0.0) * movement;
+			tool->setLocalPos(currentToolPos.x(), currentToolPos.y() - movement, currentToolPos.z());
+		}
+		camera->set(cVector3d(changePos.x(), changePos.y(), changePos.z()),
+					cVector3d(changeLook.x(), changeLook.y(), changeLook.z()),
 					cVector3d(0.0, 0.0, 1.0));
 
 		// compute global reference frames for each object
@@ -868,18 +896,23 @@ void updateHaptics(void)
 				}
 			}
 
-			int i = rand() % 3;
-			int j = rand() % 3;
-			cout << "i: " << i << " "
-				 << "j: " << j << endl;
-
-			cVector3d hamsterPos = hamsters[i][j]->getLocalPos();
-			std::cout << hamsterState[i * 3 + (j + 1)] << endl;
-			if (!hamsterState[i * 3 + (j + 1)])
+			for (int k = 0; k < 6; k++)
 			{
-				hamsters[i][j]->setLocalPos(cVector3d(hamsterPos.x(), hamsterPos.y(), hamsterPos.z() - 0.55));
+				int i = rand() % 3;
+				int j = rand() % 3;
+
+				cVector3d hamsterPos = hamsters[i][j]->getLocalPos();
+				if (!hamsterState[i * 3 + j])
+				{
+					int random = rand() % 10;
+					if (random < 5)
+					{
+						hamsters[i][j]->setLocalPos(cVector3d(hamsterPos.x(), hamsterPos.y(), hamsterPos.z() - 0.55));
+						hamsterState[i * 3 + j] = true;
+					}
+				}
 			}
-			hamsterState[i * 3 + j] = true;
+
 			random_previous = random_current;
 		}
 
