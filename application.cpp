@@ -109,6 +109,13 @@ int swapInterval = 1;
 // root resource path
 string resourceRoot;
 
+int hamster_hits;
+
+int total_hits;
+
+// Management Control
+cVector3d camLook = cVector3d(0.0, 0.0, 0.0);
+cVector3d camPos = cVector3d(0.0, 0.0, 0.0);
 
 //------------------------------------------------------------------------------
 // DECLARED MACROS
@@ -357,6 +364,7 @@ int main(int argc, char* argv[])
 	game_world = new cMultiMesh();
 
 	game_world->loadFromFile("game_world.obj");
+	game_world->setLocalPos(cVector3d(0.0, 0.0, -0.2));
 	world->addChild(game_world);
 
 	// compute collision detection algorithm
@@ -384,6 +392,7 @@ int main(int argc, char* argv[])
 			cMultiMesh* hamster = new cMultiMesh();
 			hamster->loadFromFile("hamster.obj");
 			hamster->setUseTransparency(false, true);
+			hamster->m_name = "hamster";
 
 			// add object to world
 			world->addChild(hamster);
@@ -410,7 +419,7 @@ int main(int argc, char* argv[])
 			hamster->setUseDisplayList(true);
 
 			// set location of objects
-			hamster->setLocalPos(cVector3d((double)(i - 1) * 1, (double)(j - 1) * 1, 0.0));
+			hamster->setLocalPos(cVector3d((double)(i - 1) * 1, (double)(j - 1) * 1, -0.2));
 
 			// compute all edges of object for which adjacent triangles have more than 40 degree angle
 			hamster->computeAllEdges(40);
@@ -647,7 +656,14 @@ void updateHaptics(void)
 {
 	cMode state = IDLE;
 	cGenericObject* selectedObject = NULL;
+	cGenericObject* collidedObject = NULL;
 	cTransform tool_T_object;
+
+	cVector3d toolVelocity = cVector3d(0.0, 0.0, 0.0);
+	cVector3d toolPosition = cVector3d(0.0, 0.0, 0.0);
+	cVector3d newCamLook = camLook;
+	cVector3d newCamPos = camPos;
+	double scaleVel = 0.003;
 
 	// simulation in now running
 	simulationRunning = true;
@@ -663,6 +679,22 @@ void updateHaptics(void)
 		// signal frequency counter
 		freqCounterHaptics.signal(1);
 
+		// read position
+		cVector3d position;
+		hapticDevice->getPosition(position);
+		//cout << position << endl;
+
+		// read orientation
+		cMatrix3d rotation;
+		hapticDevice->getRotation(rotation);
+
+		//toolPosition = toolPosition + toolVelocity * scaleVel;
+		newCamLook = newCamLook + (tool->getDeviceLocalLinVel()) * scaleVel;
+		newCamPos = newCamPos + (tool->getDeviceLocalLinVel()) * scaleVel;
+		camera->set(newCamLook,
+			newCamPos,
+			cVector3d(0.0, 0.0, 1.0));
+
 		// compute global reference frames for each object
 		world->computeGlobalPositions(true);
 
@@ -672,6 +704,23 @@ void updateHaptics(void)
 		// compute interaction forces
 		tool->computeInteractionForces();
 
+		if (tool->m_hapticPoint->getNumCollisionEvents() > 0) {
+			// get contact event
+			cCollisionEvent* collisionEvent = tool->m_hapticPoint->getCollisionEvent(0);
+
+			// get object from contact event
+			collidedObject = collisionEvent->m_object;
+			double size = cSub(collidedObject->getBoundaryMax(), collidedObject->getBoundaryMin()).length();
+			if (size < 0.75 && (tool->getDeviceLocalLinVel().length() >= 1.2)) {
+				cout << "HIT!" << endl;
+			}
+			else if (size < 0.75 && (tool->getDeviceLocalLinVel().length() < 1.2)) {
+				cout << "HARDER!" << endl;
+			}
+			else {
+
+			}
+		}
 
 		/////////////////////////////////////////////////////////////////////////
 		// MANIPULATION
@@ -700,7 +749,7 @@ void updateHaptics(void)
 			}
 			else
 			{
-				selectedObject = hammer;
+				selectedObject = game_world;
 			}
 
 			// get transformation from object
@@ -716,7 +765,6 @@ void updateHaptics(void)
 			// update state
 			state = SELECTION;
 		}
-
 
 		//
 		// STATE 2:
