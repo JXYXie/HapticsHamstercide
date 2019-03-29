@@ -46,36 +46,39 @@ bool mirroredDisplay = false;
 //------------------------------------------------------------------------------
 
 // a world that contains all objects of the virtual environment
-cWorld* world;
+cWorld *world;
 
 // a camera to render the world in the window display
-cCamera* camera;
+cCamera *camera;
 
 // a light source to illuminate the objects in the world
 cDirectionalLight *light;
 
 // objects
-vector <vector<cMultiMesh*>> hamsters;
-cMultiMesh* hammer;
-cMultiMesh* game_world;
+vector<vector<cMultiMesh *>> hamsters;
+vector<bool> hamsterState(9, false);
+cMultiMesh *hammer;
+cMultiMesh *game_world;
 
 // a haptic device handler
-cHapticDeviceHandler* handler;
+cHapticDeviceHandler *handler;
 
 // a pointer to the current haptic device
 cGenericHapticDevicePtr hapticDevice;
 
 // a virtual tool representing the haptic device in the scene
-cToolCursor* tool;
+cToolCursor *tool;
 
 // a colored background
-cBackground* background;
+cBackground *background;
 
 // a font for rendering text
 cFontPtr font;
+cFontPtr scoreFont;
 
 // a label to display the rate [Hz] at which the simulation is running
-cLabel* labelRates;
+cLabel *labelRates;
+cLabel *labelScore;
 
 // a flag that indicates if the haptic simulation is currently running
 bool simulationRunning = false;
@@ -98,10 +101,10 @@ cFrequencyCounter freqCounterGraphics;
 cFrequencyCounter freqCounterHaptics;
 
 // haptic thread
-cThread* hapticsThread;
+cThread *hapticsThread;
 
 // a handle to window display context
-GLFWwindow* window = NULL;
+GLFWwindow *window = NULL;
 
 // current width of window
 int width = 0;
@@ -122,26 +125,28 @@ int hamster_hits;
 int misses;
 int score;
 
+cVector3d camPos = cVector3d(3.0, 0.0, 2.0);
+cVector3d camLook = cVector3d(0.0, 0.0, 0.0);
+
 //------------------------------------------------------------------------------
 // DECLARED MACROS
 //------------------------------------------------------------------------------
 
 // convert to resource path
-#define RESOURCE_PATH(p)    (char*)((resourceRoot+string(p)).c_str())
-
+#define RESOURCE_PATH(p) (char *)((resourceRoot + string(p)).c_str())
 
 //------------------------------------------------------------------------------
 // DECLARED FUNCTIONS
 //------------------------------------------------------------------------------
 
 // callback when the window display is resized
-void windowSizeCallback(GLFWwindow* a_window, int a_width, int a_height);
+void windowSizeCallback(GLFWwindow *a_window, int a_width, int a_height);
 
 // callback when an error GLFW occurs
-void errorCallback(int error, const char* a_description);
+void errorCallback(int error, const char *a_description);
 
 // callback when a key is pressed
-void keyCallback(GLFWwindow* a_window, int a_key, int a_scancode, int a_action, int a_mods);
+void keyCallback(GLFWwindow *a_window, int a_key, int a_scancode, int a_action, int a_mods);
 
 // callback to render graphic scene
 void updateGraphics(void);
@@ -155,7 +160,7 @@ void updateHaptics(void);
 // this function closes the application
 void close(void);
 
-int main(int argc, char* argv[])
+int main(int argc, char *argv[])
 {
 	//--------------------------------------------------------------------------
 	// INITIALIZATION
@@ -165,16 +170,19 @@ int main(int argc, char* argv[])
 	cout << "-----------------------------------" << endl;
 	cout << "CHAI3D" << endl;
 	cout << "Copyright 2003-2017" << endl;
-	cout << "-----------------------------------" << endl << endl << endl;
-	cout << "Keyboard Options:" << endl << endl;
+	cout << "-----------------------------------" << endl
+		 << endl
+		 << endl;
+	cout << "Keyboard Options:" << endl
+		 << endl;
 	cout << "[f] - Enable/Disable full screen mode" << endl;
 	cout << "[m] - Enable/Disable vertical mirroring" << endl;
 	cout << "[q] - Exit application" << endl;
-	cout << endl << endl;
+	cout << endl
+		 << endl;
 
 	// parse first arg to try and locate resources
 	resourceRoot = string(argv[0]).substr(0, string(argv[0]).find_last_of("/\\") + 1);
-
 
 	//--------------------------------------------------------------------------
 	// OPEN GL - WINDOW DISPLAY
@@ -192,7 +200,7 @@ int main(int argc, char* argv[])
 	glfwSetErrorCallback(errorCallback);
 
 	// compute desired size of window
-	const GLFWvidmode* mode = glfwGetVideoMode(glfwGetPrimaryMonitor());
+	const GLFWvidmode *mode = glfwGetVideoMode(glfwGetPrimaryMonitor());
 	int w = 0.8 * mode->height;
 	int h = 0.5 * mode->height;
 	int x = 0.5 * (mode->width - w);
@@ -250,7 +258,6 @@ int main(int argc, char* argv[])
 	}
 #endif
 
-
 	//--------------------------------------------------------------------------
 	// WORLD - CAMERA - LIGHTING
 	//--------------------------------------------------------------------------
@@ -266,12 +273,12 @@ int main(int argc, char* argv[])
 	world->addChild(camera);
 
 	// define a basis in spherical coordinates for the camera
-	camera->set(cVector3d(4.0, 0.0, 2.0),    // camera position (eye)
-		cVector3d(0.0, 0.0, 0.0),    // look at position (target)
-		cVector3d(0.0, 0.0, 1.0));   // direction of the (up) vector
+	camera->set(camPos,					   // camera position (eye)
+				camLook,				   // look at position (target)
+				cVector3d(0.0, 0.0, 1.0)); // direction of the (up) vector
 
-// set the near and far clipping planes of the camera
-// anything in front or behind these clipping planes will not be rendered
+	// set the near and far clipping planes of the camera
+	// anything in front or behind these clipping planes will not be rendered
 	camera->setClippingPlanes(0.001, 1000.0);
 
 	// set stereo mode
@@ -304,7 +311,6 @@ int main(int argc, char* argv[])
 	light->m_diffuse.set(0.8f, 0.8f, 0.8f);
 	light->m_specular.set(1.0f, 1.0f, 1.0f);
 
-
 	//--------------------------------------------------------------------------
 	// HAPTIC DEVICES / TOOLS
 	//--------------------------------------------------------------------------
@@ -329,7 +335,7 @@ int main(int argc, char* argv[])
 	hapticDevice->setEnableGripperUserSwitch(true);
 
 	// define the radius of the tool (sphere)
-	double toolRadius = 0.1;
+	double toolRadius = 0.25;
 
 	// define a radius for the tool
 	tool->setRadius(toolRadius);
@@ -349,8 +355,8 @@ int main(int argc, char* argv[])
 	//tool->setLocalRot(camera->getLocalRot());
 
 	// haptic forces are enabled only if small forces are first sent to the device;
-	// this mode avoids the force spike that occurs when the application starts when 
-	// the tool is located inside an object for instance. 
+	// this mode avoids the force spike that occurs when the application starts when
+	// the tool is located inside an object for instance.
 	tool->setWaitForSmallForce(true);
 
 	// start the haptic tool
@@ -390,11 +396,13 @@ int main(int argc, char* argv[])
 	// Hamster Objects
 	//--------------------------------------------------------------------------
 
-	for (int i = 0; i < 3; ++i) {
-		hamsters.push_back(vector<cMultiMesh*>());
-		for (int j = 0; j < 3; ++j) {
+	for (int i = 0; i < 3; ++i)
+	{
+		hamsters.push_back(vector<cMultiMesh *>());
+		for (int j = 0; j < 3; ++j)
+		{
 			// create a virtual mesh
-			cMultiMesh* hamster = new cMultiMesh();
+			cMultiMesh *hamster = new cMultiMesh();
 			hamster->loadFromFile("hamster.obj");
 			hamster->setUseTransparency(false, true);
 			hamster->m_name = "hamster";
@@ -462,11 +470,18 @@ int main(int argc, char* argv[])
 
 	// create a font
 	font = NEW_CFONTCALIBRI20();
+	scoreFont = NEW_CFONTCALIBRI72();
 
 	// create a label to display the haptic and graphic rate of the simulation
 	labelRates = new cLabel(font);
 	labelRates->m_fontColor.setBlack();
 	camera->m_frontLayer->addChild(labelRates);
+
+	labelScore = new cLabel(scoreFont);
+	camera->m_frontLayer->addChild(labelScore);
+	labelScore->m_fontColor.setRedCrimson();
+	labelScore->setText("HITS: " + to_string(hamster_hits) + " " + "MISSES: " + to_string(misses));
+	labelScore->setLocalPos(200, 100);
 
 	// create a background
 	background = new cBackground();
@@ -474,10 +489,9 @@ int main(int argc, char* argv[])
 
 	// set background properties
 	background->setCornerColors(cColorf(0.95f, 0.95f, 0.95f),
-		cColorf(0.95f, 0.95f, 0.95f),
-		cColorf(0.80f, 0.80f, 0.80f),
-		cColorf(0.80f, 0.80f, 0.80f));
-
+								cColorf(0.95f, 0.95f, 0.95f),
+								cColorf(0.80f, 0.80f, 0.80f),
+								cColorf(0.80f, 0.80f, 0.80f));
 
 	//--------------------------------------------------------------------------
 	// START SIMULATION
@@ -489,7 +503,6 @@ int main(int argc, char* argv[])
 
 	// setup callback when application exits
 	atexit(close);
-
 
 	//--------------------------------------------------------------------------
 	// MAIN GRAPHIC LOOP
@@ -529,7 +542,7 @@ int main(int argc, char* argv[])
 
 //------------------------------------------------------------------------------
 
-void windowSizeCallback(GLFWwindow* a_window, int a_width, int a_height)
+void windowSizeCallback(GLFWwindow *a_window, int a_width, int a_height)
 {
 	// update window size
 	width = a_width;
@@ -538,14 +551,14 @@ void windowSizeCallback(GLFWwindow* a_window, int a_width, int a_height)
 
 //------------------------------------------------------------------------------
 
-void errorCallback(int a_error, const char* a_description)
+void errorCallback(int a_error, const char *a_description)
 {
 	cout << "Error: " << a_description << endl;
 }
 
 //------------------------------------------------------------------------------
 
-void keyCallback(GLFWwindow* a_window, int a_key, int a_scancode, int a_action, int a_mods)
+void keyCallback(GLFWwindow *a_window, int a_key, int a_scancode, int a_action, int a_mods)
 {
 	// filter calls that only include a key press
 	if ((a_action != GLFW_PRESS) && (a_action != GLFW_REPEAT))
@@ -566,10 +579,10 @@ void keyCallback(GLFWwindow* a_window, int a_key, int a_scancode, int a_action, 
 		fullscreen = !fullscreen;
 
 		// get handle to monitor
-		GLFWmonitor* monitor = glfwGetPrimaryMonitor();
+		GLFWmonitor *monitor = glfwGetPrimaryMonitor();
 
 		// get information about monitor
-		const GLFWvidmode* mode = glfwGetVideoMode(monitor);
+		const GLFWvidmode *mode = glfwGetVideoMode(monitor);
 
 		// set fullscreen or window mode
 		if (fullscreen)
@@ -604,7 +617,10 @@ void close(void)
 	simulationRunning = false;
 
 	// wait for graphics and haptics loops to terminate
-	while (!simulationFinished) { cSleepMs(100); }
+	while (!simulationFinished)
+	{
+		cSleepMs(100);
+	}
 
 	// close haptic device
 	tool->stop();
@@ -625,11 +641,10 @@ void updateGraphics(void)
 
 	// update haptic and graphic rate data
 	labelRates->setText(cStr(freqCounterGraphics.getFrequency(), 0) + " Hz / " +
-		cStr(freqCounterHaptics.getFrequency(), 0) + " Hz");
+						cStr(freqCounterHaptics.getFrequency(), 0) + " Hz");
 
 	// update position of label
 	labelRates->setLocalPos((int)(0.5 * (width - labelRates->getWidth())), 15);
-
 
 	/////////////////////////////////////////////////////////////////////
 	// RENDER SCENE
@@ -646,7 +661,8 @@ void updateGraphics(void)
 
 	// check for any OpenGL errors
 	GLenum err = glGetError();
-	if (err != GL_NO_ERROR) cout << "Error: " << gluErrorString(err) << endl;
+	if (err != GL_NO_ERROR)
+		cout << "Error: " << gluErrorString(err) << endl;
 }
 
 //------------------------------------------------------------------------------
@@ -657,17 +673,30 @@ enum cMode
 	SELECTION
 };
 
+cVector3d toolVelocity = cVector3d(0.0, 0.0, 0.0);
+cVector3d toolPosition = cVector3d(0.0, 0.0, 0.0);
+cVector3d newCamLook = camLook;
+cVector3d newCamPos = camPos;
+double scaleVel = 0.001;
+
 void updateHaptics(void)
 {
 	cMode state = IDLE;
-	cGenericObject* selectedObject = NULL;
-	cGenericObject* collidedObject = NULL;
+	cGenericObject *selectedObject = NULL;
+	cGenericObject *collidedObject = NULL;
 	cTransform tool_T_object;
 
 	// simulation in now running
 	simulationRunning = true;
 	simulationFinished = false;
 
+	cPrecisionClock timer;
+	cPrecisionClock randomTimer;
+	timer.start();
+	randomTimer.start();
+
+	double t_previous = timer.getCurrentTimeSeconds();
+	double random_previous = randomTimer.getCurrentTimeSeconds();
 	// main haptic simulation loop
 	while (simulationRunning)
 	{
@@ -678,6 +707,16 @@ void updateHaptics(void)
 		// signal frequency counter
 		freqCounterHaptics.signal(1);
 
+		/////////////////////////////////////////
+		toolPosition = tool->getLocalPos();
+		toolVelocity = tool->getDeviceLocalLinVel();
+
+		newCamLook = newCamLook + toolVelocity * scaleVel;
+		newCamPos = newCamPos + toolVelocity * scaleVel;
+		camera->set(cVector3d(newCamPos.x(), newCamPos.y(), 2),
+					cVector3d(newCamLook.x(), newCamLook.y(), 0),
+					cVector3d(0.0, 0.0, 1.0));
+
 		// compute global reference frames for each object
 		world->computeGlobalPositions(true);
 
@@ -686,33 +725,47 @@ void updateHaptics(void)
 
 		// compute interaction forces
 		tool->computeInteractionForces();
+		//Calculate elapsed time
 
 		// When there is a collision
-		if (tool->m_hapticPoint->getNumCollisionEvents() > 0) {
+		if (tool->m_hapticPoint->getNumCollisionEvents() > 0)
+		{
 
-			double duration = (clock() - start) / CLOCKS_PER_SEC;;
+			double duration = (clock() - start) / CLOCKS_PER_SEC;
 
 			// get contact event
-			cCollisionEvent* collisionEvent = tool->m_hapticPoint->getCollisionEvent(0);
+			cCollisionEvent *collisionEvent = tool->m_hapticPoint->getCollisionEvent(0);
 
 			// get object from contact event
 			collidedObject = collisionEvent->m_object;
 			double size = cSub(collidedObject->getBoundaryMax(), collidedObject->getBoundaryMin()).length();
 
 			// Make sure the hammer movement was an attempt to hit something (It has to be fast enough)
-			if (tool->getDeviceLocalLinVel().length() >= 1.5) {
+			if (tool->getDeviceLocalLinVel().length() >= 1.5)
+			{
+				double t_current = timer.getCurrentTimeSeconds();
+				double delta_t = t_current - t_previous;
+
 				// If hamster is hit and its been at least 1/5 second since last hit
-				if ((size <= 0.75) && (duration >= 0.2)) {
+				if ((size <= 0.75) && (duration >= 0.2))
+				{
 					// Start timer
 					start = clock();
 					hamster_hits++;
 					cout << "Hit!" << endl;
+					labelScore->setText("HITS: " + to_string(hamster_hits) + " " + "MISSES: " + to_string(misses));
+
+					t_previous = t_current;
 				}
-				// Misses hamster and its been at least 1/3 since last miss or hit
-				else if (size > 0.75 && (duration >= 0.33)) {
+				// Misses hamster and its been at least 1/3 second since last miss or hit
+				else if (size > 0.75 && (duration >= 0.33))
+				{
 					start = clock();
 					misses++;
 					cout << "Miss!" << endl;
+					labelScore->setText("HITS: " + to_string(hamster_hits) + " " + "MISSES: " + to_string(misses));
+
+					t_previous = t_current;
 				}
 			}
 			score = (hamster_hits * 10) - misses;
@@ -738,7 +791,7 @@ void updateHaptics(void)
 			if (tool->m_hapticPoint->getNumCollisionEvents() > 0)
 			{
 				// get contact event
-				cCollisionEvent* collisionEvent = tool->m_hapticPoint->getCollisionEvent(0);
+				cCollisionEvent *collisionEvent = tool->m_hapticPoint->getCollisionEvent(0);
 
 				// get object from contact event
 				selectedObject = collisionEvent->m_object;
@@ -751,7 +804,7 @@ void updateHaptics(void)
 			// get transformation from object
 			cTransform world_T_object = selectedObject->getGlobalTransform();
 
-			// compute inverse transformation from contact point to object 
+			// compute inverse transformation from contact point to object
 			cTransform tool_T_world = world_T_tool;
 			tool_T_world.invert();
 
@@ -794,10 +847,41 @@ void updateHaptics(void)
 			state = IDLE;
 		}
 
-
 		/////////////////////////////////////////////////////////////////////////
 		// FINALIZE
 		/////////////////////////////////////////////////////////////////////////
+
+		//randomly move hamsters
+		double random_current = timer.getCurrentTimeSeconds();
+		double delta_random = random_current - random_previous;
+		if (delta_random >= 1.5)
+		{
+			for (int i = 0; i < 9; i++)
+			{
+				int k = i / 3;
+				int l = i % 3;
+				if (hamsterState[i])
+				{
+					cVector3d hamsterPos = hamsters[k][l]->getLocalPos();
+					hamsters[k][l]->setLocalPos(cVector3d(hamsterPos.x(), hamsterPos.y(), hamsterPos.z() + 0.55));
+					hamsterState[i] = false;
+				}
+			}
+
+			int i = rand() % 3;
+			int j = rand() % 3;
+			cout << "i: " << i << " "
+				 << "j: " << j << endl;
+
+			cVector3d hamsterPos = hamsters[i][j]->getLocalPos();
+			std::cout << hamsterState[i * 3 + (j + 1)] << endl;
+			if (!hamsterState[i * 3 + (j + 1)])
+			{
+				hamsters[i][j]->setLocalPos(cVector3d(hamsterPos.x(), hamsterPos.y(), hamsterPos.z() - 0.55));
+			}
+			hamsterState[i * 3 + j] = true;
+			random_previous = random_current;
+		}
 
 		// send forces to haptic device
 		tool->applyToDevice();
