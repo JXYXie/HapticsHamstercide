@@ -405,7 +405,7 @@ int main(int argc, char *argv[])
 			cMultiMesh *hamster = new cMultiMesh();
 			hamster->loadFromFile("hamster.obj");
 			hamster->setUseTransparency(false, true);
-			hamster->m_name = "hamster";
+			hamster->m_name = "hamster" + to_string(i * 3 + j);
 
 			// add object to world
 			world->addChild(hamster);
@@ -767,29 +767,32 @@ void updateHaptics(void)
 			cCollisionEvent *collisionEvent = tool->m_hapticPoint->getCollisionEvent(0);
 
 			// get object from contact event
-			collidedObject = collisionEvent->m_object;
-			double size = cSub(collidedObject->getBoundaryMax(), collidedObject->getBoundaryMin()).length();
+			collidedObject = collisionEvent->m_object->getParent();
+			//double size = cSub(collidedObject->getBoundaryMax(), collidedObject->getBoundaryMin()).length();
 
 			//-0.2 -> 0.35
-			double force = tool->getDeviceGlobalForce().y();
-
+			double force = tool->getDeviceGlobalForce().z();
+			//cout << force << endl;
 			// move cylinder along the line according to force
 
 			// Make sure the hammer movement was an attempt to hit something (It has to be fast enough)
-			if (tool->m_hapticPoint->m_algorithmFingerProxy->getForce().z() >= 4)
+			//cout << tool->getDeviceLocalLinVel().z() << endl;
+			if (tool->getDeviceLocalLinVel().z() < -8)
 
 			{
 				// If hamster is hit (check bounding box)
-				if (size <= 0.75)
+				if (collidedObject->m_name[0] == 'h')
 				{
-					const double forceMultiplier = 8.0;
+					const double forceMultiplier = 6.0;
 					cVector3d pos = collidedObject->getLocalPos();
-					//cout << forceTimeInterval << endl;
-					double posZ = cClamp(pos.z() + forceMultiplier * forceTimeInterval * force, -0.75, 0.35);
-					if (posZ < pos.z())
-					{
-						collidedObject->setLocalPos(pos.x(), pos.y(), posZ);
-					}
+
+					tool->addDeviceLocalForce(cVector3d(0.0, 0.0, pow(1.1, -tool->getDeviceLocalLinVel().z())));
+		
+					double posZ = cClamp(pos.z() - forceMultiplier * forceTimeInterval * force, -0.75, 0.35);
+					cout << posZ << endl;
+
+					collidedObject->setLocalPos(pos.x(), pos.y(), posZ);
+					
 
 					//labelScore->setText("HITS: " + to_string(hamster_hits) + " " + "MISSES: " + to_string(misses));
 				}
