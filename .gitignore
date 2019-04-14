@@ -1,10 +1,8 @@
 /*
 !.gitignore
 !README.md
-!application.cpp
-!sphere.cpp
-!sphere.h
-!spring.cpp
-!spring.h
+!*.cpp
+!*.h
 !*.obj
 !*.mtl
+!*.off
