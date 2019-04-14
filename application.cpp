@@ -690,18 +690,22 @@ void updateHaptics(void)
 	simulationRunning = true;
 	simulationFinished = false;
 
-	cPrecisionClock timer;
+	cPrecisionClock forceClock;
+	forceClock.reset();
 	cPrecisionClock randomTimer;
-	timer.start();
 	randomTimer.start();
 
-	double t_previous = timer.getCurrentTimeSeconds();
 	double random_previous = randomTimer.getCurrentTimeSeconds();
 	cVector3d changePos = camPos;
 	cVector3d changeLook = camLook;
+
 	// main haptic simulation loop
 	while (simulationRunning)
 	{
+		forceClock.stop();
+		double forceTimeInterval = forceClock.getCurrentTimeSeconds();
+		forceClock.reset();
+		forceClock.start();
 		/////////////////////////////////////////////////////////////////////////
 		// HAPTIC RENDERING
 		/////////////////////////////////////////////////////////////////////////
@@ -759,8 +763,6 @@ void updateHaptics(void)
 		if (tool->m_hapticPoint->getNumCollisionEvents() > 0)
 		{
 
-			double duration = (clock() - start) / CLOCKS_PER_SEC;
-
 			// get contact event
 			cCollisionEvent *collisionEvent = tool->m_hapticPoint->getCollisionEvent(0);
 
@@ -768,35 +770,39 @@ void updateHaptics(void)
 			collidedObject = collisionEvent->m_object;
 			double size = cSub(collidedObject->getBoundaryMax(), collidedObject->getBoundaryMin()).length();
 
+			//-0.2 -> 0.35
+			double force = tool->getDeviceGlobalForce().y();
+
+			// move cylinder along the line according to force
+
 			// Make sure the hammer movement was an attempt to hit something (It has to be fast enough)
 			if (tool->m_hapticPoint->m_algorithmFingerProxy->getForce().z() >= 4)
+
 			{
-				double t_current = timer.getCurrentTimeSeconds();
-				double delta_t = t_current - t_previous;
-
-				// If hamster is hit and its been at least 1/5 second since last hit
-				if ((size <= 0.75) && (duration >= 0.2))
+				// If hamster is hit (check bounding box)
+				if (size <= 0.75)
 				{
-					// Start timer
-					start = clock();
-					hamster_hits++;
-					cout << "Hit!" << endl;
-					labelScore->setText("HITS: " + to_string(hamster_hits) + " " + "MISSES: " + to_string(misses));
+					const double forceMultiplier = 8.0;
+					cVector3d pos = collidedObject->getLocalPos();
+					//cout << forceTimeInterval << endl;
+					double posZ = cClamp(pos.z() + forceMultiplier * forceTimeInterval * force, -0.75, 0.35);
+					if (posZ < pos.z())
+					{
+						collidedObject->setLocalPos(pos.x(), pos.y(), posZ);
+					}
 
-					t_previous = t_current;
+					//labelScore->setText("HITS: " + to_string(hamster_hits) + " " + "MISSES: " + to_string(misses));
 				}
 				// Misses hamster and its been at least 1/3 second since last miss or hit
-				else if (size > 0.75 && (duration >= 0.25))
-				{
-					start = clock();
-					misses++;
-					cout << "Miss!" << endl;
-					labelScore->setText("HITS: " + to_string(hamster_hits) + " " + "MISSES: " + to_string(misses));
-
-					t_previous = t_current;
-				}
+				// else if (size > 0.75 && (duration >= 0.25))
+				// {
+				// 	start = clock();
+				// 	misses++;
+				// 	cout << "Miss!" << endl;
+				// 	labelScore->setText("HITS: " + to_string(hamster_hits) + " " + "MISSES: " + to_string(misses));
+				// }
+				//score = (hamster_hits * 10) - misses;
 			}
-			score = (hamster_hits * 10) - misses;
 		}
 
 		/////////////////////////////////////////////////////////////////////////
@@ -880,41 +886,41 @@ void updateHaptics(void)
 		/////////////////////////////////////////////////////////////////////////
 
 		//randomly move hamsters
-		double random_current = timer.getCurrentTimeSeconds();
-		double delta_random = random_current - random_previous;
-		if (delta_random >= 1.5)
-		{
-			for (int i = 0; i < 9; i++)
-			{
-				int k = i / 3;
-				int l = i % 3;
-				if (hamsterState[i])
-				{
-					cVector3d hamsterPos = hamsters[k][l]->getLocalPos();
-					hamsters[k][l]->setLocalPos(cVector3d(hamsterPos.x(), hamsterPos.y(), hamsterPos.z() + 0.55));
-					hamsterState[i] = false;
-				}
-			}
+		// double random_current = randomTimer.getCurrentTimeSeconds();
+		// double delta_random = random_current - random_previous;
+		// if (delta_random >= 1.5)
+		// {
+		// 	for (int i = 0; i < 9; i++)
+		// 	{
+		// 		int k = i / 3;
+		// 		int l = i % 3;
+		// 		if (hamsterState[i])
+		// 		{
+		// 			cVector3d hamsterPos = hamsters[k][l]->getLocalPos();
+		// 			hamsters[k][l]->setLocalPos(cVector3d(hamsterPos.x(), hamsterPos.y(), hamsterPos.z() + 0.55));
+		// 			hamsterState[i] = false;
+		// 		}
+		// 	}
 
-			for (int k = 0; k < 6; k++)
-			{
-				int i = rand() % 3;
-				int j = rand() % 3;
+		// 	for (int k = 0; k < 6; k++)
+		// 	{
+		// 		int i = rand() % 3;
+		// 		int j = rand() % 3;
 
-				cVector3d hamsterPos = hamsters[i][j]->getLocalPos();
-				if (!hamsterState[i * 3 + j])
-				{
-					int random = rand() % 10;
-					if (random < 5)
-					{
-						hamsters[i][j]->setLocalPos(cVector3d(hamsterPos.x(), hamsterPos.y(), hamsterPos.z() - 0.55));
-						hamsterState[i * 3 + j] = true;
-					}
-				}
-			}
+		// 		cVector3d hamsterPos = hamsters[i][j]->getLocalPos();
+		// 		if (!hamsterState[i * 3 + j])
+		// 		{
+		// 			int random = rand() % 10;
+		// 			if (random < 5)
+		// 			{
+		// 				hamsters[i][j]->setLocalPos(cVector3d(hamsterPos.x(), hamsterPos.y(), hamsterPos.z() - 0.55));
+		// 				hamsterState[i * 3 + j] = true;
+		// 			}
+		// 		}
+		// 	}
 
-			random_previous = random_current;
-		}
+		// 	random_previous = random_current;
+		// }
 
 		// send forces to haptic device
 		tool->applyToDevice();
