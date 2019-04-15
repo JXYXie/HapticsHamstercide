@@ -69,9 +69,6 @@ cAudioBuffer* audioHamsterHit;
 
 cAudioSource* audioSourceHit;
 
-// objects
-vector<vector<cMultiMesh *>> hamsters;
-
 /*
   0 = bottom
   1 = upwards
@@ -80,6 +77,8 @@ vector<vector<cMultiMesh *>> hamsters;
   4 = unconcious
  */
 vector<vector<int>> hamsterState(3, vector<int>(3));
+// objects
+vector<vector<cMultiMesh *>> hamsters;
 
 cMultiMesh *hammer;
 cMultiMesh *game_world;
@@ -106,11 +105,6 @@ bool simulationRunning = false;
 
 // a flag that indicates if the haptic simulation has terminated
 bool simulationFinished = true;
-
-// display options
-bool showEdges = true;
-bool showTriangles = true;
-bool showNormals = false;
 
 // display level for collision tree
 int collisionTreeDisplayLevel = 0;
@@ -140,7 +134,7 @@ int swapInterval = 1;
 string resourceRoot;
 
 // define the radius of the tool (sphere)
-double toolRadius = 0.25;
+double toolRadius = 0.2;
 
 //------------------------------------------------------------------------------
 // GAME VARIABLES
@@ -151,8 +145,9 @@ int score;
 int hiscore;
 
 bool raised = true;
+bool vibrate = false;
 
-cVector3d camPos = cVector3d(3.0, 0.0, 2.0);
+cVector3d camPos = cVector3d(2.0, 0.0, 1.5);
 cVector3d camLook = cVector3d(0.0, 0.0, 0.0);
 
 //------------------------------------------------------------------------------
@@ -445,7 +440,7 @@ int main(int argc, char *argv[])
 	game_world->setLocalPos(cVector3d(0.0, 0.0, -0.2));
 
 	// define a default stiffness for the object
-	game_world->setStiffness(0.8 * maxStiffness, true);
+	game_world->setStiffness(0.9 * maxStiffness, true);
 
 	game_world->computeBoundaryBox(true);
 	// enable display list for faster graphic rendering
@@ -490,7 +485,7 @@ int main(int argc, char *argv[])
 	hammer->createAABBCollisionDetector(toolRadius);
 
 	// define a default stiffness for the object
-	hammer->setStiffness(0.8 * maxStiffness, true);
+	hammer->setStiffness(0.9 * maxStiffness, true);
 
 	hammer->computeBoundaryBox(true);
 	//hammer->setShowBoundaryBox(true);
@@ -753,7 +748,7 @@ void updateGraphics(void)
 	labelScore->setText("HITS: " + to_string(hits) + " " + "MISSES: " + to_string(misses));
 
 	// update position of label
-	labelScore->setLocalPos((int)(0.5 * (width - labelScore->getWidth())), 720);
+	labelScore->setLocalPos((int)(0.5 * (width - labelScore->getWidth())), 0.925 * height);
 
 	/////////////////////////////////////////////////////////////////////
 	// RENDER SCENE
@@ -793,6 +788,11 @@ void updateHaptics(void)
 	simulationRunning = true;
 	simulationFinished = false;
 
+	cPrecisionClock timeClock;
+	timeClock.start();
+
+	cPrecisionClock vibrateTimer;
+
 	cPrecisionClock forceClock;
 	forceClock.reset();
 
@@ -805,6 +805,8 @@ void updateHaptics(void)
 		double forceTimeInterval = forceClock.getCurrentTimeSeconds();
 		forceClock.reset();
 		forceClock.start();
+
+		double vibrateInterval = vibrateTimer.getCurrentTimeSeconds();
 
 		/////////////////////////////////////////////////////////////////////////
 		// Game Loop
@@ -915,6 +917,20 @@ void updateHaptics(void)
 		tool->computeInteractionForces();
 		//Calculate elapsed time
 
+		if (vibrate && vibrateInterval > 0.4) {
+			vibrate = false;
+		}
+
+		if (vibrate) {
+			// Vibration effect
+			double timer = timeClock.getCPUTimeSeconds();
+
+			double vibrateX = sin(2.0 * M_PI * 120.0 * timer);
+			double vibrateY = cos(2.0 * M_PI * 120.0 * timer);
+
+			tool->addDeviceLocalForce(cVector3d(1.5* vibrateX, 1.5* vibrateY, 0.0));
+		}
+
 		// When there is a collision
 		if (tool->m_hapticPoint->getNumCollisionEvents() > 0)
 		{
@@ -924,7 +940,7 @@ void updateHaptics(void)
 			// get object from contact event
 			collidedObject = collisionEvent->m_object->getParent();
 
-			double force = tool->getDeviceGlobalForce().z();
+			double zForce = tool->getDeviceGlobalForce().z();
 
 			// Make sure the hammer movement was an attempt to hit something (It has to be fast enough)
 			if (tool->getDeviceLocalLinVel().z() < -10)
@@ -944,24 +960,26 @@ void updateHaptics(void)
 						const double forceMultiplier = 6.0;
 						cVector3d pos = collidedObject->getLocalPos();
 
-						tool->addDeviceLocalForce(cVector3d(0.0, 0.0, pow(-tool->getDeviceLocalLinVel().z(), 1.4)));
+						// Force effect
+						tool->addDeviceLocalForce(cVector3d(0.0, 0.0, cMax(pow(-tool->getDeviceLocalLinVel().z(), 5.0), 12.5)));
 
-						double posZ = cClamp(pos.z() - forceMultiplier * forceTimeInterval * force, -0.8, -0.2);
-
+						// Move hamsters down forcefully
+						double posZ = cClamp(pos.z() - forceMultiplier * forceTimeInterval * zForce, -0.8, -0.2);
 						collidedObject->setLocalPos(pos.x(), pos.y(), posZ);
 
+						// Hammer is no longer in raised position
 						raised = false;
 
 						// If hamster is not knocked out
 						if (hamsterState[i][j] != 5)
 						{
 							hamsterState[i][j] = 5;
+							vibrateTimer.start();
+							vibrate = true;
 							hits++;
 							audioSourceHit->play();
 						}
 					}
-
-					//PlaySound("resources/sounds/hamster_impact.wav", NULL, SND_SYNC);
 				}
 				// Missed hamster
 				else if (collidedObject->m_name[0] != 'h' && raised)
@@ -971,14 +989,6 @@ void updateHaptics(void)
 				}
 			}
 		}
-
-		/////////////////////////////////////////////////////////////////////////
-		// MANIPULATION
-		/////////////////////////////////////////////////////////////////////////
-
-		// compute transformation from world to tool (haptic device)
-		cTransform world_T_tool = tool->getDeviceGlobalTransform();
-
 		// send forces to haptic device
 		tool->applyToDevice();
 	}
