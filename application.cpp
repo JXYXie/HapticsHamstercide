@@ -63,7 +63,7 @@ vector<vector<cMultiMesh *>> hamsters;
   3 = downwards
   4 = unconcious
  */
-vector<vector<int>>hamsterState(3, vector<int>(3));
+vector<vector<int>> hamsterState(3, vector<int>(3));
 
 cMultiMesh *hammer;
 cMultiMesh *game_world;
@@ -134,8 +134,7 @@ int misses;
 int score;
 int hiscore;
 
-bool raised = true;;
-
+bool raised = true;
 
 cVector3d camPos = cVector3d(3.0, 0.0, 1.5);
 cVector3d camLook = cVector3d(0.0, 0.0, 0.0);
@@ -691,12 +690,6 @@ enum cMode
 	SELECTION
 };
 
-cVector3d toolVelocity = cVector3d(0.0, 0.0, 0.0);
-cVector3d toolPosition = cVector3d(0.0, 0.0, 0.0);
-cVector3d newCamLook = camLook;
-cVector3d newCamPos = camPos;
-double scaleVel = 0.001;
-
 void updateHaptics(void)
 {
 	cMode state = IDLE;
@@ -711,8 +704,7 @@ void updateHaptics(void)
 	cPrecisionClock forceClock;
 	forceClock.reset();
 
-	cVector3d changePos = camPos;
-	cVector3d changeLook = camLook;
+	cVector3d devicePositionPrevious = tool->getDeviceLocalPos();
 
 	// main haptic simulation loop
 	while (simulationRunning)
@@ -726,7 +718,8 @@ void updateHaptics(void)
 		// Game Loop
 		/////////////////////////////////////////////////////////////////////////
 		// Reset missed flag when hammer moves up
-		if (tool->getDeviceLocalLinVel().z() > 4) {
+		if (tool->getDeviceLocalLinVel().z() > 4)
+		{
 			raised = true;
 		}
 
@@ -734,57 +727,72 @@ void updateHaptics(void)
 		// Hamster Movements
 		/////////////////////////////////////////////////////////////////////////
 
-		for (int k = 0; k < 25; k++) {
+		for (int k = 0; k < 25; k++)
+		{
 			int i = rand() % 3;
 			int j = rand() % 3;
 			cVector3d hamsterPos = hamsters[i][j]->getLocalPos();
 			// Hamster is in bottom position
-			if (hamsterState[i][j] == 0) {
+			if (hamsterState[i][j] == 0)
+			{
 				int random = (rand() % 10000) + 1;
-				if (random <= 2) {
+				if (random <= 2)
+				{
 					hamsterState[i][j] = 1;
 				}
 			}
 			// Hamster is in moving upwards
-			else if (hamsterState[i][j] == 1) {
+			else if (hamsterState[i][j] == 1)
+			{
 				// And is not at the top yet
-				if (hamsterPos.z() < -0.199) {
+				if (hamsterPos.z() < -0.199)
+				{
 					hamsters[i][j]->translate(cVector3d(0.0, 0.0, 0.001));
 				}
 				// And is at the top
-				else {
+				else
+				{
 					hamsterState[i][j] = 2;
 				}
 			}
 			// Hamster is at the top
-			else if (hamsterState[i][j] == 2) {
+			else if (hamsterState[i][j] == 2)
+			{
 				int random = (rand() % 10000) + 1;
-				if (random <= 4) {
+				if (random <= 4)
+				{
 					hamsterState[i][j] = 4;
 				}
 			}
 			// Hamster is moving downwards
-			else if (hamsterState[i][j] == 3) {
+			else if (hamsterState[i][j] == 3)
+			{
 				// And is not at the bottom yet
-				if (hamsterPos.z() > -0.8) {
+				if (hamsterPos.z() > -0.8)
+				{
 					hamsters[i][j]->translate(cVector3d(0.0, 0.0, -0.001));
 				}
 				// And is at the bottom
-				else {
+				else
+				{
 					hamsterState[i][j] = 0;
 				}
 			}
 			// Hamster is knocked out
-			else {
+			else
+			{
 				// But is not at the bottom
-				if (hamsterPos.z() > -0.8) {
+				if (hamsterPos.z() > -0.8)
+				{
 					// Then move to the bottom
 					hamsters[i][j]->translate(cVector3d(0.0, 0.0, -0.0015));
 				}
-				else {
+				else
+				{
 					// Low chance of hamster coming back to bottom state
 					int random = (rand() % 10000) + 1;
-					if (random <= 1) {
+					if (random <= 1)
+					{
 						hamsterState[i][j] = 0;
 					}
 				}
@@ -799,40 +807,13 @@ void updateHaptics(void)
 		freqCounterHaptics.signal(1);
 
 		/////////////////////////////////////////
-		cVector3d devicePosition = tool->getDeviceLocalPos();
-		//cout << "tool pos: " << devicePosition << endl;
+		cVector3d devicePositionCurrent = tool->getDeviceLocalPos();
+		cVector3d deviceDelta = devicePositionCurrent - devicePositionPrevious;
+		devicePositionPrevious = devicePositionCurrent;
 
-		double bounds = 0.5;
-		double movement = 0.0015;
-		cVector3d currentToolPos;
-		currentToolPos = tool->getLocalPos();
-		if (devicePosition.x() > bounds)
-		{
-			changePos = changePos + cVector3d(1.0, 0.0, 0.0) * movement;
-			changeLook = changeLook + cVector3d(1.0, 0.0, 0.0) * movement;
-			tool->setLocalPos(currentToolPos.x() + movement, currentToolPos.y(), currentToolPos.z());
-		}
-		else if (devicePosition.x() < -bounds)
-		{
-			changePos = changePos + cVector3d(-1.0, 0.0, 0.0) * movement;
-			changeLook = changeLook + cVector3d(-1.0, 0.0, 0.0) * movement;
-			tool->setLocalPos(currentToolPos.x() - movement, currentToolPos.y(), currentToolPos.z());
-		}
-		else if (devicePosition.y() > bounds)
-		{
-			changePos = changePos + cVector3d(0.0, 1.0, 0.0) * movement;
-			changeLook = changeLook + cVector3d(0.0, 1.0, 0.0) * movement;
-			tool->setLocalPos(currentToolPos.x(), currentToolPos.y() + movement, currentToolPos.z());
-		}
-		else if (devicePosition.y() < -bounds)
-		{
-			changePos = changePos + cVector3d(0.0, -1.0, 0.0) * movement;
-			changeLook = changeLook + cVector3d(0.0, -1.0, 0.0) * movement;
-			tool->setLocalPos(currentToolPos.x(), currentToolPos.y() - movement, currentToolPos.z());
-		}
-		camera->set(cVector3d(changePos.x(), changePos.y(), changePos.z()),
-					cVector3d(changeLook.x(), changeLook.y(), changeLook.z()),
-					cVector3d(0.0, 0.0, 1.0));
+		tool->translate(cVector3d(deviceDelta.x(), deviceDelta.y(), 0));
+
+		camera->translate(cVector3d(deviceDelta.x(), deviceDelta.y(), 0));
 
 		// compute global reference frames for each object
 		world->computeGlobalPositions(true);
@@ -867,7 +848,8 @@ void updateHaptics(void)
 					int i = hamsterID / 3;
 					int j = hamsterID % 3;
 					// If the hamster is not hiding
-					if (hamsterState[i][j] != 0) {
+					if (hamsterState[i][j] != 0)
+					{
 						// Apply reaction force
 						const double forceMultiplier = 6.0;
 						cVector3d pos = collidedObject->getLocalPos();
@@ -881,14 +863,16 @@ void updateHaptics(void)
 						raised = false;
 
 						// If hamster is not knocked out
-						if (hamsterState[i][j] != 5) {
+						if (hamsterState[i][j] != 5)
+						{
 							hamsterState[i][j] = 5;
 							hits++;
 						}
 					}
 				}
 				// Missed hamster
-				else if (collidedObject->m_name[0] != 'h' && raised) {
+				else if (collidedObject->m_name[0] != 'h' && raised)
+				{
 					raised = false;
 					misses++;
 				}
