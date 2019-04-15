@@ -1,7 +1,7 @@
 //==============================================================================
 /*
 	Haptic Hamstercide Game
-	Version: 0.0.5 (Apr 14, 2019)
+	Version: 0.0.6 (Apr 14, 2019)
 	Authors: Jack Xie & Alan Fung
 	
 	TODO:
@@ -12,6 +12,10 @@
 #include <ctime>
 #include <time.h>
 #include <string>
+#include <iostream>
+#include <Windows.h>
+#include <MMSystem.h>
+
 //------------------------------------------------------------------------------
 #include "chai3d.h"
 //------------------------------------------------------------------------------
@@ -50,8 +54,23 @@ cWorld *world;
 // a camera to render the world in the window display
 cCamera *camera;
 
+// game background
+cBackground* background;
+
 // a light source to illuminate the objects in the world
 cDirectionalLight *light;
+
+//------------------------------------------------------------------------------
+// Sound
+//------------------------------------------------------------------------------
+// audio device to play sound
+cAudioDevice* audioDevice;
+// audio buffers to store sound files
+cAudioBuffer* audioGroundImpact;
+cAudioBuffer* audioGroundTouch;
+cAudioBuffer* audioHamsterImpact;
+cAudioBuffer* audioHamsterTouch;
+cAudioBuffer* audioHamsterHit;
 
 // objects
 vector<vector<cMultiMesh *>> hamsters;
@@ -76,9 +95,6 @@ cGenericHapticDevicePtr hapticDevice;
 
 // a virtual tool representing the haptic device in the scene
 cToolCursor *tool;
-
-// a colored background
-cBackground *background;
 
 // a font for rendering text
 cFontPtr font;
@@ -137,7 +153,7 @@ int hiscore;
 bool raised = true;;
 
 
-cVector3d camPos = cVector3d(3.0, 0.0, 1.5);
+cVector3d camPos = cVector3d(3.0, 0.0, 2.0);
 cVector3d camLook = cVector3d(0.0, 0.0, 0.0);
 
 //------------------------------------------------------------------------------
@@ -382,16 +398,49 @@ int main(int argc, char *argv[])
 	double maxStiffness = hapticDeviceInfo.m_maxLinearStiffness / workspaceScaleFactor;
 
 	//--------------------------------------------------------------------------
+	// SETUP AUDIO MATERIAL
+	//--------------------------------------------------------------------------
+
+	// create an audio device to play sounds
+	audioDevice = new cAudioDevice();
+
+	// attach audio device to camera
+	camera->attachAudioDevice(audioDevice);
+
+	audioGroundImpact = new cAudioBuffer();
+	audioGroundImpact->loadFromFile("resources/sounds/ground_impact.wav");
+
+	audioGroundTouch = new cAudioBuffer();
+	audioGroundTouch->loadFromFile("resources/sounds/ground_scrape.wav");
+
+	audioHamsterImpact = new cAudioBuffer();
+	audioHamsterImpact->loadFromFile("resources/sounds/hamster_impact.wav");
+
+	audioHamsterTouch = new cAudioBuffer();
+	audioHamsterTouch->loadFromFile("resources/sounds/hamster_squeak.wav");
+
+	audioHamsterHit = new cAudioBuffer();
+	audioHamsterHit->loadFromFile("resources/sounds/hamster_hit.wav");
+
+	// here we convert all files to mono. this allows for 3D sound support. if this code
+	// is commented files are kept in stereo format and 3D sound is disabled. Compare both!
+	audioGroundImpact->convertToMono();
+	audioGroundTouch->convertToMono();
+	audioHamsterImpact->convertToMono();
+	audioHamsterTouch->convertToMono();
+	audioHamsterHit->convertToMono();
+
+	// create an audio source for this tool.
+	tool->createAudioSource(audioDevice);
+
+	//--------------------------------------------------------------------------
 	// Game World Object
 	//--------------------------------------------------------------------------
 	game_world = new cMultiMesh();
 
-	game_world->loadFromFile("game_world.obj");
+	game_world->loadFromFile("resources/models/game_world.obj");
 	game_world->setLocalPos(cVector3d(0.0, 0.0, -0.2));
 	world->addChild(game_world);
-
-	// compute collision detection algorithm
-	game_world->createAABBCollisionDetector(toolRadius);
 
 	// define a default stiffness for the object
 	game_world->setStiffness(0.8 * maxStiffness, true);
@@ -403,6 +452,21 @@ int main(int argc, char *argv[])
 	game_world->setUseTransparency(false, true);
 
 	game_world->setUseCulling(false);
+
+	game_world->setFriction(0.75, 0.5, true);
+
+	// set audio properties
+	for (int i = 0; i < (game_world->getNumMeshes()); i++) {
+		(game_world->getMesh(i))->m_material->setAudioFrictionBuffer(audioGroundTouch);
+		(game_world->getMesh(i))->m_material->setAudioFrictionGain(0.5);
+		(game_world->getMesh(i))->m_material->setAudioFrictionPitchGain(0.2);
+		(game_world->getMesh(i))->m_material->setAudioFrictionPitchOffset(0);
+		(game_world->getMesh(i))->m_material->setAudioImpactBuffer(audioGroundImpact);
+		(game_world->getMesh(i))->m_material->setAudioImpactGain(1.5);
+	}
+
+	// compute collision detection algorithm
+	game_world->createAABBCollisionDetector(toolRadius);
 
 	//--------------------------------------------------------------------------
 	// Hamster Objects
@@ -417,7 +481,7 @@ int main(int argc, char *argv[])
 		{
 			// create a virtual mesh
 			cMultiMesh *hamster = new cMultiMesh();
-			hamster->loadFromFile("hamster.obj");
+			hamster->loadFromFile("resources/models/hamster.obj");
 			hamster->setUseTransparency(false, true);
 			hamster->m_name = "hamster" + to_string(i * 3 + j);
 
@@ -433,11 +497,8 @@ int main(int argc, char *argv[])
 			// show/hide boundary box
 			hamster->setShowBoundaryBox(false);
 
-			// compute collision detection algorithm
-			hamster->createAABBCollisionDetector(toolRadius);
-
 			// define a default stiffness for the object
-			hamster->setStiffness(0.5 * maxStiffness, true);
+			hamster->setStiffness(0.1 * maxStiffness, true);
 
 			// define some haptic friction properties
 			hamster->setFriction(0.4, 0.2, true);
@@ -451,6 +512,19 @@ int main(int argc, char *argv[])
 			// compute all edges of object for which adjacent triangles have more than 40 degree angle
 			hamster->computeAllEdges(40);
 
+			// set audio properties
+			for (int i = 0; i < (hamster->getNumMeshes()); i++) {
+				(hamster->getMesh(i))->m_material->setAudioFrictionBuffer(audioHamsterTouch);
+				(hamster->getMesh(i))->m_material->setAudioFrictionGain(0.8);
+				(hamster->getMesh(i))->m_material->setAudioFrictionPitchGain(0.8);
+				(hamster->getMesh(i))->m_material->setAudioFrictionPitchOffset(0.8);
+				(hamster->getMesh(i))->m_material->setAudioImpactBuffer(audioHamsterHit);
+				(hamster->getMesh(i))->m_material->setAudioImpactGain(0.8);
+			}
+
+			// compute collision detection algorithm
+			hamster->createAABBCollisionDetector(toolRadius);
+
 			hamsters[i].push_back(hamster);
 		}
 	}
@@ -461,7 +535,7 @@ int main(int argc, char *argv[])
 	hammer = new cMultiMesh();
 	// add hammer to tool
 	tool->m_image = hammer;
-	hammer->loadFromFile("hammer.obj");
+	hammer->loadFromFile("resources/models/hammer.obj");
 
 	// compute collision detection algorithm
 	hammer->createAABBCollisionDetector(toolRadius);
@@ -497,6 +571,8 @@ int main(int argc, char *argv[])
 
 	// create a background
 	background = new cBackground();
+
+	background->loadFromFile("resources/images/background.jpg");
 	camera->m_backLayer->addChild(background);
 
 	// set background properties
@@ -641,6 +717,12 @@ void close(void)
 	delete hapticsThread;
 	delete world;
 	delete handler;
+	delete audioDevice;
+	delete audioGroundImpact;
+	delete audioGroundTouch;
+	delete audioHamsterImpact;
+	delete audioHamsterTouch;
+	delete audioHamsterHit;
 }
 
 //------------------------------------------------------------------------------
@@ -765,7 +847,7 @@ void updateHaptics(void)
 			}
 			// Hamster is moving downwards
 			else if (hamsterState[i][j] == 3) {
-				// And is not at the bottom yet
+				// And is not at the bottom yet 
 				if (hamsterPos.z() > -0.8) {
 					hamsters[i][j]->translate(cVector3d(0.0, 0.0, -0.001));
 				}
@@ -801,6 +883,7 @@ void updateHaptics(void)
 		/////////////////////////////////////////
 		cVector3d devicePosition = tool->getDeviceLocalPos();
 		//cout << "tool pos: " << devicePosition << endl;
+
 
 		double bounds = 0.5;
 		double movement = 0.0015;
@@ -856,7 +939,7 @@ void updateHaptics(void)
 			double force = tool->getDeviceGlobalForce().z();
 
 			// Make sure the hammer movement was an attempt to hit something (It has to be fast enough)
-			if (tool->getDeviceLocalLinVel().z() < -9)
+			if (tool->getDeviceLocalLinVel().z() < -10)
 			{
 				// If the collided object is a hamster
 				if (collidedObject->m_name[0] == 'h')
@@ -872,7 +955,7 @@ void updateHaptics(void)
 						const double forceMultiplier = 6.0;
 						cVector3d pos = collidedObject->getLocalPos();
 
-						tool->addDeviceLocalForce(cVector3d(0.0, 0.0, pow(1.25, -tool->getDeviceLocalLinVel().z())));
+						tool->addDeviceLocalForce(cVector3d(0.0, 0.0, pow(-tool->getDeviceLocalLinVel().z(), 1.4)));
 
 						double posZ = cClamp(pos.z() - forceMultiplier * forceTimeInterval * force, -0.8, -0.2);
 
@@ -886,6 +969,7 @@ void updateHaptics(void)
 							hits++;
 						}
 					}
+					//PlaySound("resources/sounds/hamster_impact.wav", NULL, SND_SYNC);
 				}
 				// Missed hamster
 				else if (collidedObject->m_name[0] != 'h' && raised) {
