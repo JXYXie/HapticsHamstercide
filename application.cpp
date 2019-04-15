@@ -943,7 +943,7 @@ void updateHaptics(void)
 			double zForce = tool->getDeviceGlobalForce().z();
 
 			// Make sure the hammer movement was an attempt to hit something (It has to be fast enough)
-			if (tool->getDeviceLocalLinVel().z() < -10)
+			if (tool->getDeviceLocalLinVel().z() < -9)
 			{
 				// If the collided object is a hamster
 				if (collidedObject->m_name[0] == 'h')
@@ -961,7 +961,9 @@ void updateHaptics(void)
 						cVector3d pos = collidedObject->getLocalPos();
 
 						// Force effect
-						tool->addDeviceLocalForce(cVector3d(0.0, 0.0, cMax(pow(-tool->getDeviceLocalLinVel().z(), 5.0), 12.5)));
+						double ReactionForceY = cMax(pow(cAbs(tool->getDeviceLocalLinVel().z()), 1.2), 2.0);
+						cVector3d ReactionForce = cVector3d(-(tool->getDeviceLocalLinVel().x()), -(tool->getDeviceLocalLinVel().y()), -ReactionForceY);
+						tool->addDeviceLocalForce(ReactionForce);
 
 						// Move hamsters down forcefully
 						double posZ = cClamp(pos.z() - forceMultiplier * forceTimeInterval * zForce, -0.8, -0.2);
