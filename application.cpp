@@ -50,7 +50,7 @@ cWorld *world;
 cCamera *camera;
 
 // game background
-cBackground* background;
+cBackground *background;
 
 // a light source to illuminate the objects in the world
 cDirectionalLight *light;
@@ -59,15 +59,15 @@ cDirectionalLight *light;
 // Sound
 //------------------------------------------------------------------------------
 // audio device to play sound
-cAudioDevice* audioDevice;
+cAudioDevice *audioDevice;
 // audio buffers to store sound files
-cAudioBuffer* audioGroundImpact;
-cAudioBuffer* audioGroundTouch;
-cAudioBuffer* audioHamsterImpact;
-cAudioBuffer* audioHamsterTouch;
-cAudioBuffer* audioHamsterHit;
+cAudioBuffer *audioGroundImpact;
+cAudioBuffer *audioGroundTouch;
+cAudioBuffer *audioHamsterImpact;
+cAudioBuffer *audioHamsterTouch;
+cAudioBuffer *audioHamsterHit;
 
-cAudioSource* audioSourceHit;
+cAudioSource *audioSourceHit;
 
 // objects
 vector<vector<cMultiMesh *>> hamsters;
@@ -99,7 +99,23 @@ cFontPtr scoreFont;
 
 // a label to display the rate [Hz] at which the simulation is running
 cLabel *labelRates;
+
+//game related labels
 cLabel *labelScore;
+cLabel *labelTitle;
+cLabel *labelAuthor;
+cLabel *labelStartSingleplayer;
+cLabel *labelStartMultiplayer;
+cLabel *labelTimesUp;
+cLabel *labelWin;
+cLabel *labelLose;
+cLabel *labelOptions;
+cLabel *labelOptions1;
+cLabel *labelTime;
+cLabel *labelReady;
+vector<cLabel *> titleScreenLabels;
+vector<cLabel *> inGameLabels;
+vector<cLabel *> postGameLabels;
 
 // a flag that indicates if the haptic simulation is currently running
 bool simulationRunning = false;
@@ -121,7 +137,7 @@ cFrequencyCounter freqCounterGraphics;
 // a frequency counter to measure the simulation haptic rate
 cFrequencyCounter freqCounterHaptics;
 
-// haptic thread
+// haptic threadl
 cThread *hapticsThread;
 
 // a handle to window display context
@@ -150,7 +166,21 @@ int misses;
 int score;
 int hiscore;
 
+// 1= title screen
+// 2= countdown
+// 3= single player
+// 4= multiplayer
+// 5= time's up(singleplayer)
+// 6 = you win (multiplayer)
+// 7 = you lose (multiplayer)
+int gameMode = 1;
+
 bool raised = true;
+
+vector<cGenericObject *> sceneObjects;
+
+cPrecisionClock gameCountdownTimer;
+cPrecisionClock gameTimer;
 
 cVector3d camPos = cVector3d(3.0, 0.0, 2.0);
 cVector3d camLook = cVector3d(0.0, 0.0, 0.0);
@@ -388,6 +418,9 @@ int main(int argc, char *argv[])
 	// start the haptic tool
 	tool->start();
 
+	//tool->setLocalPos(cVector3d(0.0, 0.0, 20.0));
+	//tool->translate(cVector3d(cVector3d(0.0, 0.0, 30.0)));
+
 	// read the scale factor between the physical workspace of the haptic
 	// device and the virtual workspace defined for the tool
 	double workspaceScaleFactor = tool->getWorkspaceScaleFactor();
@@ -445,7 +478,7 @@ int main(int argc, char *argv[])
 	game_world->setLocalPos(cVector3d(0.0, 0.0, -0.2));
 
 	// define a default stiffness for the object
-	game_world->setStiffness(0.8 * maxStiffness, true);
+	game_world->setStiffness(0.95 * maxStiffness, true);
 
 	game_world->computeBoundaryBox(true);
 	// enable display list for faster graphic rendering
@@ -458,7 +491,8 @@ int main(int argc, char *argv[])
 	game_world->setFriction(0.75, 0.5, true);
 
 	// set audio properties
-	for (int i = 0; i < (game_world->getNumMeshes()); i++) {
+	for (int i = 0; i < (game_world->getNumMeshes()); i++)
+	{
 		(game_world->getMesh(i))->m_material->setAudioFrictionBuffer(audioGroundTouch);
 		(game_world->getMesh(i))->m_material->setAudioFrictionGain(0.4);
 		(game_world->getMesh(i))->m_material->setAudioFrictionPitchGain(0.2);
@@ -476,7 +510,7 @@ int main(int argc, char *argv[])
 
 	srand(time(NULL));
 
-	startGame();
+	//startGame();
 
 	//--------------------------------------------------------------------------
 	// Hammer Object
@@ -507,16 +541,88 @@ int main(int argc, char *argv[])
 
 	// create a font
 	font = NEW_CFONTCALIBRI20();
-	scoreFont = NEW_CFONTCALIBRI40();
+	scoreFont = NEW_CFONTCALIBRI144();
+	// create a font
+	cFontPtr fontText = cFont::create();
 
-	// create a label to display the haptic and graphic rate of the simulation
+	bool fileload;
+	// load font file
+	fileload = fontText->loadFromFile(RESOURCE_PATH("../resources/fonts/HomeRemedy-144.fnt"));
+	if (!fileload)
+	{
+#if defined(_MSVC)
+		fileload = fontText->loadFromFile("../../../bin/resources/fonts/HomeRemedy-144.fnt");
+#endif
+	}
+	if (!fileload)
+	{
+		cout << "Error - Font file failed to load correctly." << endl;
+		close();
+		return (-1);
+	}
+
+	cFontPtr titleFont = cFont::create();
+	fileload = titleFont->loadFromFile(RESOURCE_PATH("../resources/fonts/metacorr-72.fnt"));
+	if (!fileload)
+	{
+#if defined(_MSVC)
+		fileload = titleFont->loadFromFile("../../../bin/resources/fonts/metacorr-72.fnt");
+#endif
+	}
+	if (!fileload)
+	{
+		cout << "Error - Font file failed to load correctly." << endl;
+		close();
+		return (-1);
+	}
+
+	//what is a for loop
 	labelRates = new cLabel(font);
 	labelRates->m_fontColor.setBlack();
 	camera->m_frontLayer->addChild(labelRates);
 
 	labelScore = new cLabel(scoreFont);
 	labelScore->m_fontColor.setRedCrimson();
-	camera->m_frontLayer->addChild(labelScore);
+
+	labelTitle = new cLabel(fontText);
+	labelTitle->m_fontColor.setWhiteBeige();
+	camera->m_frontLayer->addChild(labelTitle);
+	labelTitle->setText("HAPTIC HAMSTERCIDE");
+	labelTitle->setLocalPos((int)(0.5 * (width - labelTitle->getWidth())), 0.8 * height);
+	titleScreenLabels.push_back(labelTitle);
+
+	labelAuthor = new cLabel(scoreFont);
+	labelAuthor->m_fontColor.setWhiteIvory();
+	camera->m_frontLayer->addChild(labelAuthor);
+	labelAuthor->setText("JACK XIE & ALAN FUNG");
+	labelAuthor->setLocalPos((int)(0.5 * (width - labelAuthor->getWidth())), 0.2 * height);
+	titleScreenLabels.push_back(labelAuthor);
+
+	labelOptions = new cLabel(titleFont);
+	labelOptions->m_fontColor.setWhiteLinen();
+	camera->m_frontLayer->addChild(labelOptions);
+	labelOptions->setText("PRESS 1 FOR SINGLE PLAYER");
+	labelOptions->setLocalPos((int)(0.5 * (width - labelOptions->getWidth())), 0.6 * height);
+	titleScreenLabels.push_back(labelOptions);
+
+	labelOptions1 = new cLabel(titleFont);
+	labelOptions1->m_fontColor.setWhiteLinen();
+	camera->m_frontLayer->addChild(labelOptions1);
+	labelOptions1->setText("PRESS 2 FOR MULTIPLAYER");
+	labelOptions1->setLocalPos((int)(0.5 * (width - labelOptions1->getWidth())), 0.4 * height);
+	titleScreenLabels.push_back(labelOptions1);
+
+	labelTime = new cLabel(scoreFont);
+	labelTime->m_fontColor.setRedDarkSalmon();
+	labelTime->setText("30");
+
+	labelReady = new cLabel(scoreFont);
+	labelReady->m_fontColor.setRedCrimson();
+	labelReady->setText("READY?");
+
+	labelTimesUp = new cLabel(scoreFont);
+	labelTimesUp->m_fontColor.setOrangeLightSalmon();
+	labelTimesUp->setText("TIMES UP!");
 
 	// create a background
 	background = new cBackground();
@@ -577,10 +683,13 @@ int main(int argc, char *argv[])
 	return 0;
 }
 
-void startGame() {
-
-
+void startGame()
+{
+	hamsters.clear();
+	for (int i = 0; i < 3; i++)
+		hamsterState[i].resize(3, 3);
 	world->addChild(game_world);
+	sceneObjects.push_back(game_world);
 	for (int i = 0; i < 3; ++i)
 	{
 		hamsters.push_back(vector<cMultiMesh *>());
@@ -594,6 +703,7 @@ void startGame() {
 
 			// add object to world
 			world->addChild(hamster);
+			sceneObjects.push_back(hamster);
 
 			// disable culling so that faces are rendered on both sides
 			hamster->setUseCulling(false);
@@ -620,7 +730,8 @@ void startGame() {
 			hamster->computeAllEdges(40);
 
 			// set audio properties
-			for (int i = 0; i < (hamster->getNumMeshes()); i++) {
+			for (int i = 0; i < (hamster->getNumMeshes()); i++)
+			{
 				(hamster->getMesh(i))->m_material->setAudioFrictionBuffer(audioHamsterTouch);
 				(hamster->getMesh(i))->m_material->setAudioFrictionGain(0.8);
 				(hamster->getMesh(i))->m_material->setAudioFrictionPitchGain(0.8);
@@ -704,6 +815,36 @@ void keyCallback(GLFWwindow *a_window, int a_key, int a_scancode, int a_action, 
 		mirroredDisplay = !mirroredDisplay;
 		camera->setMirrorVertical(mirroredDisplay);
 	}
+
+	else if (a_key == GLFW_KEY_1)
+	{
+		gameMode = 2;
+		for (cGenericObject *temp : sceneObjects)
+		{
+			world->removeChild(temp);
+		}
+		sceneObjects.clear();
+		gameCountdownTimer.stop();
+		gameCountdownTimer.reset();
+		gameTimer.stop();
+		gameTimer.reset();
+		gameCountdownTimer.start();
+		camera->m_frontLayer->clearAllChildren();
+		camera->m_frontLayer->addChild(labelRates);
+		camera->m_frontLayer->addChild(labelScore);
+		camera->m_frontLayer->addChild(labelReady);
+
+		startGame();
+	}
+	else if (a_key == GLFW_KEY_SPACE && gameMode == 5)
+	{
+		gameMode = 1;
+		for (cLabel *temp : titleScreenLabels)
+		{
+			camera->m_frontLayer->addChild(temp);
+		}
+		tool->setLocalPos(cVector3d(0.0, 0.0, 20.0));
+	}
 }
 
 //------------------------------------------------------------------------------
@@ -742,6 +883,11 @@ void updateGraphics(void)
 	// UPDATE WIDGETS
 	/////////////////////////////////////////////////////////////////////
 
+	labelReady->setLocalPos((int)(0.5 * (width - labelOptions1->getWidth())), 0.4 * height);
+	labelTime->setLocalPos((int)(0.5 * (width - labelOptions1->getWidth())), 0.9 * height);
+	labelScore->setLocalPos((int)(0.5 * (width - labelScore->getWidth())), 0.8 * height);
+	labelTimesUp->setLocalPos((int)(0.5 * (width - labelScore->getWidth())), 0.5 * height);
+
 	// update haptic and graphic rate data
 	labelRates->setText(cStr(freqCounterGraphics.getFrequency(), 0) + " Hz / " +
 						cStr(freqCounterHaptics.getFrequency(), 0) + " Hz");
@@ -753,7 +899,6 @@ void updateGraphics(void)
 	labelScore->setText("HITS: " + to_string(hits) + " " + "MISSES: " + to_string(misses));
 
 	// update position of label
-	labelScore->setLocalPos((int)(0.5 * (width - labelScore->getWidth())), 720);
 
 	/////////////////////////////////////////////////////////////////////
 	// RENDER SCENE
@@ -782,8 +927,10 @@ enum cMode
 	SELECTION
 };
 
+bool toolMovedBack = false;
 void updateHaptics(void)
 {
+
 	cMode state = IDLE;
 	cGenericObject *selectedObject = NULL;
 	cGenericObject *collidedObject = NULL;
@@ -801,11 +948,61 @@ void updateHaptics(void)
 	// main haptic simulation loop
 	while (simulationRunning)
 	{
+		if (gameMode == 1)
+		{
+			//cout << "game mode 1" << endl;
+			continue;
+		}
+		else if (gameMode == 2)
+		{
+			//cout << "game mode 2" << endl;
+			if (gameCountdownTimer.getCurrentTimeSeconds() < 3)
+			{
+				continue;
+			}
+			if (!toolMovedBack)
+			{
+				//tool->translate(cVector3d(cVector3d(0.0, 0.0, 30.0)));
+			}
+			gameMode = 3;
+			camera->m_frontLayer->addChild(labelTime);
+			gameTimer.start();
+		}
+
+		else if (gameMode == 5)
+		{
+			continue;
+		}
+		double time = gameTimer.getCurrentTimeSeconds();
+		time = 10.0 - time;
+		labelTime->setText(to_string(int(time)));
+
+		double gameTimeCheck = gameCountdownTimer.getCurrentTimeSeconds();
+		if (gameTimeCheck < 5)
+		{
+			labelReady->setText("GO!");
+		}
+		if (gameTimeCheck > 6)
+		{
+			camera->m_frontLayer->removeChild(labelReady);
+		}
+		if (time <= 0)
+		{
+			gameMode = 5;
+			for (cLabel *temp : inGameLabels)
+			{
+				camera->m_frontLayer->removeChild(temp);
+			}
+			camera->m_frontLayer->addChild(labelTimesUp);
+			continue;
+		}
+
 		forceClock.stop();
 		double forceTimeInterval = forceClock.getCurrentTimeSeconds();
 		forceClock.reset();
 		forceClock.start();
 
+		//cout << "entered game loop" << endl;
 		/////////////////////////////////////////////////////////////////////////
 		// Game Loop
 		/////////////////////////////////////////////////////////////////////////
@@ -857,9 +1054,11 @@ void updateHaptics(void)
 				}
 			}
 			// Hamster is moving downwards
-			else if (hamsterState[i][j] == 3) {
+			else if (hamsterState[i][j] == 3)
+			{
 				// And is not at the bottom yet
-				if (hamsterPos.z() > -0.8) {
+				if (hamsterPos.z() > -0.8)
+				{
 					hamsters[i][j]->translate(cVector3d(0.0, 0.0, -0.001));
 				}
 				// And is at the bottom
