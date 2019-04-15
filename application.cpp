@@ -1,20 +1,15 @@
 //==============================================================================
 /*
 	Haptic Hamstercide Game
-	Version: 0.0.6 (Apr 14, 2019)
+	Version: 0.0.7 (Apr 15, 2019)
 	Authors: Jack Xie & Alan Fung
 
-	TODO:
-	- Workspace management that does not track hammer Z-axis movement
-	- Stronger force feedback on hits (hamsters are bouncy?) and/or vibrations
 */
 //==============================================================================
 #include <ctime>
 #include <time.h>
 #include <string>
 #include <iostream>
-#include <Windows.h>
-#include <MMSystem.h>
 
 //------------------------------------------------------------------------------
 #include "chai3d.h"
@@ -144,6 +139,9 @@ int swapInterval = 1;
 // root resource path
 string resourceRoot;
 
+// define the radius of the tool (sphere)
+double toolRadius = 0.25;
+
 //------------------------------------------------------------------------------
 // GAME VARIABLES
 //------------------------------------------------------------------------------
@@ -167,6 +165,8 @@ cVector3d camLook = cVector3d(0.0, 0.0, 0.0);
 //------------------------------------------------------------------------------
 // DECLARED FUNCTIONS
 //------------------------------------------------------------------------------
+
+void startGame();
 
 // callback when the window display is resized
 void windowSizeCallback(GLFWwindow *a_window, int a_width, int a_height);
@@ -363,9 +363,6 @@ int main(int argc, char *argv[])
 	// if the haptic device has a gripper, enable it as a user switch
 	hapticDevice->setEnableGripperUserSwitch(true);
 
-	// define the radius of the tool (sphere)
-	double toolRadius = 0.25;
-
 	// define a radius for the tool
 	tool->setRadius(toolRadius);
 
@@ -446,7 +443,6 @@ int main(int argc, char *argv[])
 
 	game_world->loadFromFile("resources/models/game_world.obj");
 	game_world->setLocalPos(cVector3d(0.0, 0.0, -0.2));
-	world->addChild(game_world);
 
 	// define a default stiffness for the object
 	game_world->setStiffness(0.8 * maxStiffness, true);
@@ -480,60 +476,7 @@ int main(int argc, char *argv[])
 
 	srand(time(NULL));
 
-	for (int i = 0; i < 3; ++i)
-	{
-		hamsters.push_back(vector<cMultiMesh *>());
-		for (int j = 0; j < 3; ++j)
-		{
-			// create a virtual mesh
-			cMultiMesh *hamster = new cMultiMesh();
-			hamster->loadFromFile("resources/models/hamster.obj");
-			hamster->setUseTransparency(false, true);
-			hamster->m_name = "hamster" + to_string(i * 3 + j);
-
-			// add object to world
-			world->addChild(hamster);
-
-			// disable culling so that faces are rendered on both sides
-			hamster->setUseCulling(false);
-
-			// compute a boundary box
-			hamster->computeBoundaryBox(true);
-
-			// show/hide boundary box
-			hamster->setShowBoundaryBox(false);
-
-			// define a default stiffness for the object
-			hamster->setStiffness(0.1 * maxStiffness, true);
-
-			// define some haptic friction properties
-			hamster->setFriction(0.4, 0.2, true);
-
-			// enable display list for faster graphic rendering
-			hamster->setUseDisplayList(true);
-
-			// set location of objects
-			hamster->setLocalPos(cVector3d((double)(i - 1) * 1, (double)(j - 1) * 1, -0.8));
-
-			// compute all edges of object for which adjacent triangles have more than 40 degree angle
-			hamster->computeAllEdges(40);
-
-			// set audio properties
-			for (int i = 0; i < (hamster->getNumMeshes()); i++) {
-				(hamster->getMesh(i))->m_material->setAudioFrictionBuffer(audioHamsterTouch);
-				(hamster->getMesh(i))->m_material->setAudioFrictionGain(0.8);
-				(hamster->getMesh(i))->m_material->setAudioFrictionPitchGain(0.8);
-				(hamster->getMesh(i))->m_material->setAudioFrictionPitchOffset(0.8);
-				(hamster->getMesh(i))->m_material->setAudioImpactBuffer(audioHamsterImpact);
-				(hamster->getMesh(i))->m_material->setAudioImpactGain(0.8);
-			}
-
-			// compute collision detection algorithm
-			hamster->createAABBCollisionDetector(toolRadius);
-
-			hamsters[i].push_back(hamster);
-		}
-	}
+	startGame();
 
 	//--------------------------------------------------------------------------
 	// Hammer Object
@@ -632,6 +575,66 @@ int main(int argc, char *argv[])
 
 	// exit
 	return 0;
+}
+
+void startGame() {
+
+
+	world->addChild(game_world);
+	for (int i = 0; i < 3; ++i)
+	{
+		hamsters.push_back(vector<cMultiMesh *>());
+		for (int j = 0; j < 3; ++j)
+		{
+			// create a virtual mesh
+			cMultiMesh *hamster = new cMultiMesh();
+			hamster->loadFromFile("resources/models/hamster.obj");
+			hamster->setUseTransparency(false, true);
+			hamster->m_name = "hamster" + to_string(i * 3 + j);
+
+			// add object to world
+			world->addChild(hamster);
+
+			// disable culling so that faces are rendered on both sides
+			hamster->setUseCulling(false);
+
+			// compute a boundary box
+			hamster->computeBoundaryBox(true);
+
+			// show/hide boundary box
+			hamster->setShowBoundaryBox(false);
+
+			// define a default stiffness for the object
+			hamster->setStiffness(0.1 * 100, true);
+
+			// define some haptic friction properties
+			hamster->setFriction(0.4, 0.2, true);
+
+			// enable display list for faster graphic rendering
+			hamster->setUseDisplayList(true);
+
+			// set location of objects
+			hamster->setLocalPos(cVector3d((double)(i - 1) * 1, (double)(j - 1) * 1, -0.8));
+
+			// compute all edges of object for which adjacent triangles have more than 40 degree angle
+			hamster->computeAllEdges(40);
+
+			// set audio properties
+			for (int i = 0; i < (hamster->getNumMeshes()); i++) {
+				(hamster->getMesh(i))->m_material->setAudioFrictionBuffer(audioHamsterTouch);
+				(hamster->getMesh(i))->m_material->setAudioFrictionGain(0.8);
+				(hamster->getMesh(i))->m_material->setAudioFrictionPitchGain(0.8);
+				(hamster->getMesh(i))->m_material->setAudioFrictionPitchOffset(0.8);
+				(hamster->getMesh(i))->m_material->setAudioImpactBuffer(audioHamsterImpact);
+				(hamster->getMesh(i))->m_material->setAudioImpactGain(0.8);
+			}
+
+			// compute collision detection algorithm
+			hamster->createAABBCollisionDetector(toolRadius);
+
+			hamsters[i].push_back(hamster);
+		}
+	}
 }
 
 //------------------------------------------------------------------------------
