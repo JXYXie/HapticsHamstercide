@@ -72,6 +72,8 @@ cAudioBuffer* audioHamsterImpact;
 cAudioBuffer* audioHamsterTouch;
 cAudioBuffer* audioHamsterHit;
 
+cAudioSource* audioSourceHit;
+
 // objects
 vector<vector<cMultiMesh *>> hamsters;
 
@@ -422,6 +424,11 @@ int main(int argc, char *argv[])
 	audioHamsterHit = new cAudioBuffer();
 	audioHamsterHit->loadFromFile("resources/sounds/hamster_hit.wav");
 
+	audioSourceHit = new cAudioSource;
+
+	audioSourceHit->setAudioBuffer(audioHamsterHit);
+	audioSourceHit->setGain(1.4);
+
 	// here we convert all files to mono. this allows for 3D sound support. if this code
 	// is commented files are kept in stereo format and 3D sound is disabled. Compare both!
 	audioGroundImpact->convertToMono();
@@ -458,11 +465,11 @@ int main(int argc, char *argv[])
 	// set audio properties
 	for (int i = 0; i < (game_world->getNumMeshes()); i++) {
 		(game_world->getMesh(i))->m_material->setAudioFrictionBuffer(audioGroundTouch);
-		(game_world->getMesh(i))->m_material->setAudioFrictionGain(0.5);
+		(game_world->getMesh(i))->m_material->setAudioFrictionGain(0.4);
 		(game_world->getMesh(i))->m_material->setAudioFrictionPitchGain(0.2);
 		(game_world->getMesh(i))->m_material->setAudioFrictionPitchOffset(0);
 		(game_world->getMesh(i))->m_material->setAudioImpactBuffer(audioGroundImpact);
-		(game_world->getMesh(i))->m_material->setAudioImpactGain(1.5);
+		(game_world->getMesh(i))->m_material->setAudioImpactGain(0.5);
 	}
 
 	// compute collision detection algorithm
@@ -518,7 +525,7 @@ int main(int argc, char *argv[])
 				(hamster->getMesh(i))->m_material->setAudioFrictionGain(0.8);
 				(hamster->getMesh(i))->m_material->setAudioFrictionPitchGain(0.8);
 				(hamster->getMesh(i))->m_material->setAudioFrictionPitchOffset(0.8);
-				(hamster->getMesh(i))->m_material->setAudioImpactBuffer(audioHamsterHit);
+				(hamster->getMesh(i))->m_material->setAudioImpactBuffer(audioHamsterImpact);
 				(hamster->getMesh(i))->m_material->setAudioImpactGain(0.8);
 			}
 
@@ -967,8 +974,10 @@ void updateHaptics(void)
 						if (hamsterState[i][j] != 5) {
 							hamsterState[i][j] = 5;
 							hits++;
+							audioSourceHit->play();
 						}
 					}
+					
 					//PlaySound("resources/sounds/hamster_impact.wav", NULL, SND_SYNC);
 				}
 				// Missed hamster
